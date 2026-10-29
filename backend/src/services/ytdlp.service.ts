@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { ApiError } from '../utils/apiError.js';
 import { ProcessRunner, type RunResult } from '../utils/exec.js';
@@ -185,6 +186,16 @@ export class YtDlpService {
     this.sweeper = setInterval(() => void sweepStale(this.o.tmpDir, 60 * 60_000), 10 * 60_000);
     this.sweeper.unref();
     if (this.o.cacheDir) await fs.mkdir(this.o.cacheDir, { recursive: true, mode: 0o700 });
+    // Hosts such as Render mount secret files read-only, but yt-dlp saves cookies back to the file (Errno 30).
+    // So work on a writable private copy (outside tmpDir, which is swept).
+    if (this.o.cookiesFile) {
+      try {
+        const copy = path.join(os.tmpdir(), 'vidfetch-cookies.txt');
+        await fs.copyFile(this.o.cookiesFile, copy);
+        await fs.chmod(copy, 0o600);
+        this.o.cookiesFile = copy;
+      } catch { /* keep the original path; yt-dlp will report a clear error */ }
+    }
     // Fire-and-forget: the first real user should not pay the cold-start cost (player JS download, Deno start).
     if (this.o.warmup) void this.fetchInfo('https://www.youtube.com/watch?v=jNQXAC9IVRw').catch(() => undefined);
   }
