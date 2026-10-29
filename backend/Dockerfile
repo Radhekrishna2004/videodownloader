@@ -21,6 +21,13 @@ RUN apt-get update \
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+
+RUN mkdir -p /app/data /tmp/vidfetch \
+    && chown -R node:node /app/data /tmp/vidfetch
+
+ENV DATA_DIR=/app/data
+ENV TMP_DIR=/tmp/vidfetch
+
 USER node
 EXPOSE 4000
 CMD ["node", "dist/server.js"]
